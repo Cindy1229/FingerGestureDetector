@@ -1,14 +1,19 @@
-import logo from "./logo.svg";
 import "./App.css";
 import * as tf from "@tensorflow/tfjs";
 import * as handpose from "@tensorflow-models/handpose";
 import Webcam from "react-webcam";
-import { useRef } from "react";
+import { useRef, useState, useEffect } from "react";
 import { drawHand } from "./utilities.js";
+import * as fp from "fingerpose";
+import victory from "./emoji/victory.png";
+import thumbs_up from "./emoji/thumbs_up.png";
 
 function App() {
   const webcamRef = useRef(null);
   const canvasRef = useRef(null);
+
+  const [emoji, setEmoji] = useState(null);
+  const images = { thumbs_up: thumbs_up, victory: victory };
 
   const runHandpose = async () => {
     const net = await handpose.load();
@@ -37,13 +42,36 @@ function App() {
         const hand = await net.estimateHands(video);
         console.log(hand);
 
+        if (hand.length > 0) {
+          const GE = new fp.GestureEstimator([
+            fp.Gestures.VictoryGesture,
+            fp.Gestures.ThumbsUpGesture,
+          ]);
+          const gesture = await GE.estimate(hand[0].landmarks, 4);
+          console.log(gesture);
+
+          if (gesture.gestures !== undefined && gesture.gestures.length > 0) {
+            const confidence = gesture.gestures.map(
+              (prediction) => prediction.confidence
+            );
+            const maxConfidence = confidence.indexOf(
+              Math.max.apply(null, confidence)
+            );
+            setEmoji(gesture.gestures[maxConfidence].name);
+            console.log(emoji);
+          }
+        }
+
         const ctx = canvasRef.current.getContext("2d");
         drawHand(hand, ctx);
       }
     };
   };
 
-  runHandpose();
+  useEffect(() => {
+    runHandpose();
+  }, []);
+
   return (
     <div className="App">
       <header className="App-header">
@@ -75,6 +103,24 @@ function App() {
             height: 480,
           }}
         />
+        <div
+          style={{
+            display: "flex",
+            position: "absolute",
+            top: 20,
+            zIndex: 100,
+          }}
+        >
+          <h2>The Gesture is:</h2>
+          {emoji !== null ? (
+            <img
+              src={images[emoji]}
+              style={{ width: 30, height: 30, paddingTop: 30, paddingLeft: 10 }}
+            />
+          ) : (
+            ""
+          )}
+        </div>
       </header>
     </div>
   );
